@@ -2,7 +2,9 @@ import {BindingsStream, IBatchedTrainingExamples, ITrainEpisode, ITrainingExampl
 import {IAggregateValues, IRunningMoments} from "@comunica/mediator-join-reinforcement-learning";
 import * as fs from 'fs';
 import * as path from 'path';
-import { updateRunningMoments } from "./update_moments";
+import * as tf from '@tensorflow/tfjs-node'
+import { updateRunningMoments } from "./helper";
+import { maxHeaderSize } from "http";
 // TEST
 var readline = require('readline');
 
@@ -20,7 +22,6 @@ class trainComunicaModel{
         this.engine = new QueryEngine().create();
         this.batchedTrainingExamples = {trainingExamples: new Map<string, ITrainingExample>, leafFeatures: {hiddenStates: [], memoryCell:[]}};
         this.batchedValidationExamples = {trainingExamples: new Map<string, ITrainingExample>, leafFeatures: {hiddenStates: [], memoryCell:[]}};
-
         this.queries=[];
         this.valQueries=[];
         this.runningMomentsExecutionTime = {indexes: [0], runningStats: new Map<number, IAggregateValues>()};
@@ -72,7 +73,7 @@ class trainComunicaModel{
     }
 
     public cleanBatchTrainingExamples(){
-        this.batchedTrainingExamples.leafFeatures.hiddenStates.map(x=>x.dispose());
+        this.batchedTrainingExamples.leafFeatures.hiddenStates.map(x =>x.dispose());
         this.batchedTrainingExamples.leafFeatures.memoryCell.map(x=>x.dispose());
         this.batchedTrainingExamples = {trainingExamples: new Map<string, ITrainingExample>, leafFeatures: {hiddenStates: [], memoryCell:[]}};
     }
@@ -108,6 +109,20 @@ class trainComunicaModel{
             }
         });
         return loadingComplete;
+    }
+
+    public getNextVersion(queryDir: string){
+        // Get the next number in the experiments directory
+        const versionsMade = fs.readdirSync( queryDir, { withFileTypes: true })
+        .filter((item) => item.isDirectory())
+        .map((item) => parseInt(item.name.replace(/^\D+/g, '')));
+
+        if (versionsMade.length==0){
+            return 1;
+        }
+        else{
+            return Math.max(...versionsMade)+1;
+        }
     }
 
     public addListener(bindingStream: BindingsStream, startTime: number, joinsMadeEpisode: string[], val: boolean): Promise<number>{
@@ -166,18 +181,18 @@ class trainComunicaModel{
     }
 }
 
-const numSim = 5;
-const numSimVal = 10;
-const nEpochs = 5;
+const numSim = 2;
+const numSimVal = 2;
+const nEpochs = 10;
 const pathRunningMoments = "../../actor-rdf-join-inner-multi-reinforcement-learning-tree/model/moments/";
-const pathEpochInfos: string[] = [path.join(__dirname, "../log/avgTrainLoss"),
-path.join(__dirname, "../log/avgValLoss"),
-path.join(__dirname, "../log/stdValLoss"),
-path.join(__dirname, "../log/avgValExecutionTime")];
+const pathEpochInfos: string[] = ["avgTrainLoss.txt", "avgValLoss.txt","stdValLoss.txt", "avgValExecutionTime.txt"];
 
 const zeroJoinsFound = new Map<string, number>();
 
 const trainEngine = new trainComunicaModel();
+const nextModelVersion = trainEngine.getNextVersion(path.join(__dirname, '../log'));
+const nextModelLocation = path.join(__dirname, "../log/model-version-"+nextModelVersion);
+console.log(nextModelLocation)
 const loadingTrain = trainEngine.loadWatDivQueries('output/queries', false);
 const loadingValidation = trainEngine.loadWatDivQueries('missingGenreOutput/queriesVal', true);
 
@@ -186,6 +201,11 @@ const epochValLoss: number[] = [];
 const epochValExecutionTime: number[] = [];
 const epochValStdLoss: number[] = []
 
+fs.mkdir(nextModelLocation, (err)=>{
+    if (err){
+        return console.error(err);
+    }
+});
 
 loadingTrain.then(async ()=>{
     let cleanedQueries: string[][] = trainEngine.queries.map(x => x.replace(/\n/g, '').replace(/\t/g, '').split('SELECT'));
@@ -194,7 +214,7 @@ loadingTrain.then(async ()=>{
 
     for (let epoch=0;epoch<nEpochs; epoch++){
         let epochTrainLoss = [];
-        for (let i=3;i<cleanedQueries.length;i++){
+        for (let i=0;i<cleanedQueries.length;i++){
             console.log(`Query Template ${i+1}/${cleanedQueries.length}`);
 
             const querySubset: string[] = [... cleanedQueries[i]];
@@ -206,6 +226,7 @@ loadingTrain.then(async ()=>{
                 for (let k=0;k<numSim;k++){
                     const foundJoins: boolean = await trainEngine.executeQueryTrain('SELECT' + querySubset[j], ["output/dataset.nt"], true);
                     // Here we keep track if there are joins in the executed query, if not we log the query and don't train on it
+                    // Does not work properly
                     successfulJoinExecutions += foundJoins ? 1 : 0;
                     if (!foundJoins){
                         let mapEntry = zeroJoinsFound.get('SELECT' + querySubset[j]);
@@ -217,6 +238,7 @@ loadingTrain.then(async ()=>{
                         }
                     }
                 }
+                console.log(trainEngine.batchedTrainingExamples);
                 if (successfulJoinExecutions>0){
                     epochTrainLoss.push(await trainEngine.engine.trainModel(trainEngine.batchedTrainingExamples));
                 }
@@ -224,21 +246,35 @@ loadingTrain.then(async ()=>{
             }
         }
         const avgLossTrain = epochTrainLoss.reduce((a, b) => a + b, 0) / epochTrainLoss.length;
+        console.log(avgLossTrain);
         const [avgExecution, avgExecutionTemplate, stdExecutionTemplate, avgLoss, stdLoss] = await validatePerformance(trainEngine.valQueries);
         console.log(`Epoch ${epoch+1}/${nEpochs}: Train Loss: ${avgLossTrain}, Validation Execution time: ${avgExecution}, Loss: ${avgLoss}, Std: ${stdLoss}`);
 
+        // Checkpointing
+        const checkPointLocation = path.join(nextModelLocation + "/chkp-"+epoch);
+
+        fs.mkdir(checkPointLocation, (err)=>{
+            if (err){
+                return console.error(err);
+            }
+        });
+
+        const epochStatisticsLocation = pathEpochInfos.map(x=>path.join(checkPointLocation, x));
+        console.log(epochStatisticsLocation)
+
         totalEpochTrainLoss.push(avgLossTrain); epochValLoss.push(avgLoss); epochValExecutionTime.push(avgExecution); epochValStdLoss.push(stdLoss);    
-        writeEpochFiles(pathEpochInfos, [epochTrainLoss, epochValLoss, epochValStdLoss, epochValExecutionTime], epoch);
+        writeEpochFiles(epochStatisticsLocation, [totalEpochTrainLoss, epochValLoss, epochValStdLoss, epochValExecutionTime], epoch);
     }
     fs.writeFileSync('log/skippedQueries.json', JSON.stringify([...zeroJoinsFound]) , 'utf-8'); 
     trainEngine.engine.saveModel(pathRunningMoments+"runningMomentsFeatures"+1+".json");  
 });
 
 async function validatePerformance(queries: string[]):Promise<[number, number[], number[], number, number]>{
+    console.log("Running validation");
     await loadingValidation;
     let cleanedQueries: string[][] = trainEngine.valQueries.map(x => x.replace(/\n/g, '').replace(/\t/g, '').split('SELECT'));
     const rawExecutionTimesTemplate: number[][] = [];
-    for(let i=3;i<cleanedQueries.length;i++){
+    for(let i=0;i<cleanedQueries.length;i++){
         const rawExecutionTimes: number[] = []
         const querySubset: string[] = [... cleanedQueries[i]];
         // Start at j=1 because first element is empty
@@ -283,7 +319,7 @@ function stdArray(values: number[], mean: number){
 
 function writeEpochFiles(fileLocations: string[], epochInformation: number[][], epochNum: number){
     for (let i=0;i<fileLocations.length;i++){
-        fs.writeFileSync(fileLocations[i]+epochNum+".json", JSON.stringify([...epochInformation[i]]));
+        fs.writeFileSync(fileLocations[i], JSON.stringify([...epochInformation[i]]));
     }
     fs.writeFileSync('log/skippedQueries.json', JSON.stringify([...zeroJoinsFound]) , 'utf-8'); 
 }

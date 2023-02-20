@@ -9,10 +9,8 @@
   "author": "",
   "license": "ISC",
   "types": "./run_comunica.d.ts",
-  "devDependencies": {
-    "@types/node": "^18.11.18"
-  },
   "dependencies": {
-    "@tensorflow/tfjs-node": "^4.2.0"
+    "@tensorflow/tfjs-node": "^4.2.0",
+    "@types/node": "^18.13.0"
   }
 }
