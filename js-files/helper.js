@@ -35,14 +35,20 @@ class ExperienceBuffer {
         this.queryLeafFeatures = new Map();
         this.experienceAgeTracker = [];
         this.maxSize = maxSize;
-        this.size = 0;
     }
     getExperience(queryKey, joinPlanKey) {
-        return this.experienceBufferMap.get(queryKey)?.get(joinPlanKey);
+        return this.experienceBufferMap.get(queryKey).get(joinPlanKey);
     }
     getRandomExperience() {
         const index = (Math.random() * (this.getSize())) << 0;
         const key = this.experienceAgeTracker[index];
+        if (!this.getExperience(key.query, key.joinPlanKey)) {
+            console.log(index);
+            console.log(key);
+            console.log(this.experienceAgeTracker);
+            this.printExperiences();
+            console.error("Got invalid index or key");
+        }
         return [this.getExperience(key.query, key.joinPlanKey), key];
     }
     getFeatures(query) {
@@ -105,11 +111,7 @@ class ExperienceBuffer {
         // If size exceeds max from push we remove first pushed element from the age tracker and the map
         if (this.getSize() > this.maxSize) {
             const removedElement = this.experienceAgeTracker.shift();
-            this.experienceBufferMap.get(queryKey).delete(removedElement.joinPlanKey);
-        }
-        // If we're under max size we increase size, if at max size the size stays the same
-        else {
-            this.size += 1;
+            this.experienceBufferMap.get(removedElement.query).delete(removedElement.joinPlanKey);
         }
         return;
     }
@@ -123,7 +125,15 @@ class ExperienceBuffer {
         return this.queryLeafFeatures.get(queryKey)?.hiddenStates.length;
     }
     getSize() {
-        return this.size;
+        return this.experienceAgeTracker.length;
+    }
+    printExperiences() {
+        for (const [key, value] of this.experienceBufferMap.entries()) {
+            if (value.size > 0) {
+                console.log(key);
+                console.log(value);
+            }
+        }
     }
 }
 exports.ExperienceBuffer = ExperienceBuffer;

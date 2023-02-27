@@ -6,7 +6,6 @@ export declare class ExperienceBuffer {
     experienceBufferMap: Map<string, Map<string, IExperience>>;
     queryLeafFeatures: Map<string, IResultSetRepresentation>;
     experienceAgeTracker: IExperienceKey[];
-    size: number;
     maxSize: number;
     /**
      * FIFO query execution buffer. We use this for periodical training. This allows for better data efficiency since the model is incredibly light weight
@@ -35,6 +34,7 @@ export declare class ExperienceBuffer {
     setLeafFeaturesQuery(queryKey: string, leafFeatures: IResultSetRepresentation): void;
     getNumJoinsQuery(queryKey: string): number | undefined;
     getSize(): number;
+    printExperiences(): void;
 }
 export interface IExperience {
     actualExecutionTimeNorm: number;

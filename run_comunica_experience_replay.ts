@@ -34,15 +34,15 @@ class trainComunicaModel{
     }
 
     public async executeQueryTrain(query: string, sources:string[], train:boolean, queryKey: string, runningMomentsFeatureFile?: string){
-        const starthrTime: number[] = process.hrtime();
-        const startTime: number = starthrTime[0] + starthrTime[1] / 1000000000;
+        const startTime: number = this.getTimeSeconds();
         const bindingsStream: BindingsStream = await this.engine.queryBindings(query, {sources: sources, batchedTrainingExamples: this.batchedTrainingExamples,
         runningMomentsFeatureFile: runningMomentsFeatureFile, train: train});
+        const endTimeSearch = this.getTimeSeconds();
         if (train){
             if (this.engine.trainEpisode.joinsMade.length==0){
                 this.engine.disposeTrainEpisode();
                 this.engine.trainEpisode = {joinsMade: [], estimatedQValues: [], featureTensor: {hiddenStates:[], memoryCell:[]}, isEmpty:true};    
-                return;
+                return endTimeSearch-startTime;
                 // throw new Error("Training episode contained 0 joins");
             }
             const joinOrderKeys: string[] = [];
@@ -57,7 +57,7 @@ class trainComunicaModel{
             this.engine.disposeTrainEpisode();
             this.engine.trainEpisode = {joinsMade: [], estimatedQValues: [], featureTensor: {hiddenStates:[], memoryCell:[]}, isEmpty:true};    
         }
-        return;
+        return endTimeSearch-startTime;
     }
 
     public async executeQueryValidation(query: string, sources:string[], queryKey: string){
@@ -177,6 +177,66 @@ class trainComunicaModel{
         });
         return finishedReading;
     }
+
+    public addListenerTimeOut(bindingStream: BindingsStream, startTime: number, joinsMadeEpisode: string[], queryKey: string, 
+        validation: boolean, recordExperience: boolean): Promise<number>{
+        /**
+         * Function that consumes the binding stream, measures elapsed time, and updates the batchTrainEpisode
+         */
+        const timeLimit = 1000;
+        let timeOutReached = false;
+        let timeOutHandle: any;
+
+        const timeOutPromise: Promise<number> = new Promise((resolve, reject)=>{
+            timeOutHandle = setTimeout(
+                () => {timeOutReached=true; resolve(timeLimit)},
+                timeLimit
+            );
+        });
+
+        const finishedReading: Promise<number> = new Promise((resolve, reject) => {
+                bindingStream.on('data', (binding: any) => {
+                    if (timeOutReached){
+                        reject();
+                    }
+                });
+                
+                bindingStream.on('end', () => {
+                    console.log("ARE WE RUNNING THIS?")
+                    const endTime: number = this.getTimeSeconds();
+                    const elapsed: number = endTime-startTime;
+                    resolve(elapsed);
+                })    
+        });
+
+        const resolvedPromise = Promise.race([timeOutPromise, finishedReading]).then(result => {
+            clearTimeout(timeOutHandle);
+            const elapsed = result;
+            const statsY: IAggregateValues = this.runningMomentsExecutionTime.runningStats.get(this.runningMomentsExecutionTime.indexes[0])!;
+
+            if (!validation){
+                updateRunningMoments(statsY, elapsed);
+            }
+
+            const standardisedElapsed = (elapsed - statsY.mean) / statsY.std;
+            for (const joinMade of joinsMadeEpisode){
+                const trainingExample: ITrainingExample | undefined = validation ? this.batchedValidationExamples.trainingExamples.get(joinMade) :
+                this.batchedTrainingExamples.trainingExamples.get(joinMade);
+                if (!trainingExample){
+                    throw new Error("Training example given that is not in batched episode");
+                }
+                const newExperience: IExperience = {actualExecutionTimeRaw: elapsed, actualExecutionTimeNorm: standardisedElapsed, 
+                    joinIndexes: keyToIdx(joinMade), N:1};
+                if (recordExperience){
+                    this.experienceBuffer.setExperience(queryKey, joinMade, newExperience, statsY);
+                }
+            }
+            console.log("Reached timeout!!");
+            console.log(result);
+            return 0;
+        });
+        return resolvedPromise;
+    }
     
     public async awaitEngine(){
         this.engine = await this.engine
@@ -192,26 +252,35 @@ class trainComunicaModel{
         return indexes.flat().toString().replaceAll(',', '');
     }
 }
-
-const numSim = 2;
-const numSimVal = 2;
+// Magic numbers
+const numSim = 1;
+const numSimVal = 5;
 const numExperiencePerSim = 8;
-const nEpochs = 10;
+const nEpochs = 40;
+const sizeBuffer = 2000;
+
+// Timeouts set according to execution time of multi-smallest actor in standard comunica
+const timeouts: number[] = [1,1,1,1,1,1,1,30,1,1,1,1,1,1,1,1,1,1];
+
+// Actual engine used for training
+const trainEngine = new trainComunicaModel(sizeBuffer);
+
+// Logging info
 const pathRunningMoments = "../../actor-rdf-join-inner-multi-reinforcement-learning-tree/model/moments/";
 const pathEpochInfos: string[] = ["avgTrainLoss.txt", "avgValLoss.txt","stdValLoss.txt", "avgValExecutionTime.txt"];
-
-const zeroJoinsFound = new Map<string, number>();
-
-const trainEngine = new trainComunicaModel(1000);
 const nextModelVersion = trainEngine.getNextVersion(path.join(__dirname, '../log'));
 const nextModelLocation = path.join(__dirname, "../log/model-version-exp-replay-"+nextModelVersion);
-const loadingTrain = trainEngine.loadWatDivQueries('output/queries', false);
+
+// Loading queries
+const loadingTrain = trainEngine.loadWatDivQueries('missingGenreOutput/queries', false);
 const loadingValidation = trainEngine.loadWatDivQueries('missingGenreOutput/queriesVal', true);
 
+// Tracking statistics
 const totalEpochTrainLoss: number[] = [];
 const epochValLoss: number[] = [];
 const epochValExecutionTime: number[] = [];
 const epochValStdLoss: number[] = [];
+const averageSearchTime: number[] = [];
 
 fs.mkdir(nextModelLocation, (err)=>{
     if (err){
@@ -220,6 +289,7 @@ fs.mkdir(nextModelLocation, (err)=>{
 });
 // FOR DEBUGGING
 Error.stackTraceLimit = Infinity;
+
 loadingTrain.then(async ()=>{
     let cleanedQueries: string[][] = trainEngine.queries.map(x => x.replace(/\n/g, '').replace(/\t/g, '').split('SELECT'));
     await trainEngine.awaitEngine();
@@ -232,17 +302,18 @@ loadingTrain.then(async ()=>{
             querySubset.shift();
 
             console.log(`Query Template ${i+1}/${cleanedQueries.length}`);
-            console.log(querySubset[0]);
 
+            const searchTimes = [];
             for (let j=0;j<querySubset.length;j++){
 
                 const queryKey: string = `${i}`+`${j}`;
                 for (let k=0;k<numSim;k++){
-                    await trainEngine.executeQueryTrain('SELECT' + querySubset[j], ["output/dataset.nt"], true, queryKey);
+                    const searchTime = await trainEngine.executeQueryTrain('SELECT' + querySubset[j], ["missingGenreOutput/dataset.nt"], true, queryKey);
+                    searchTimes.push(searchTime);
                     const experiences: IExperience[] = [];
                     const features = [];                    
                     // Sample experiences from the buffer if we have enough prior executions
-                    if (trainEngine.experienceBuffer.getSize()>30){
+                    if (trainEngine.experienceBuffer.getSize()>1){
                         for (let z=0;z<numExperiencePerSim;z++){
                             const experience: [IExperience, IExperienceKey] = trainEngine.experienceBuffer.getRandomExperience();
                             experiences.push(experience[0]);
@@ -253,14 +324,13 @@ loadingTrain.then(async ()=>{
                         epochTrainLoss.push(loss);
                     }
                 }
-
                 trainEngine.cleanBatchTrainingExamples();
-            } 
+            }
+            averageSearchTime.push(searchTimes.reduce((a, b) => a + b, 0) / searchTimes.length);
         }
+        console.log(averageSearchTime);
         const avgLossTrain = epochTrainLoss.reduce((a, b) => a + b, 0) / epochTrainLoss.length;
-        console.log("Start")
         const [avgExecution, avgExecutionTemplate, stdExecutionTemplate, avgLoss, stdLoss] = await validatePerformance(trainEngine.valQueries);
-        console.log("Hello?")
         console.log(`Epoch ${epoch+1}/${nEpochs}: Train Loss: ${avgLossTrain}, Validation Execution time: ${avgExecution}, Loss: ${avgLoss}, Std: ${stdLoss}`);
 
         // Checkpointing
@@ -277,13 +347,14 @@ loadingTrain.then(async ()=>{
 
         totalEpochTrainLoss.push(avgLossTrain); epochValLoss.push(avgLoss); epochValExecutionTime.push(avgExecution); epochValStdLoss.push(stdLoss);    
         writeEpochFiles(epochStatisticsLocation, [totalEpochTrainLoss, epochValLoss, epochValStdLoss, epochValExecutionTime], epoch);
+        trainEngine.engine.saveModel();
     }
-    fs.writeFileSync('log/skippedQueries.json', JSON.stringify([...zeroJoinsFound]) , 'utf-8'); 
     trainEngine.engine.saveModel(pathRunningMoments+"runningMomentsFeatures"+1+".json");  
 });
 
 async function validatePerformance(queries: string[]):Promise<[number, number[], number[], number, number]>{
     console.log("Running validation");
+    console.log(`Start tensors ${tf.memory().numTensors}`);
     await loadingValidation;
     let cleanedQueries: string[][] = trainEngine.valQueries.map(x => x.replace(/\n/g, '').replace(/\t/g, '').split('SELECT'));
     const rawExecutionTimesTemplate: number[][] = [];
@@ -324,7 +395,7 @@ async function validatePerformance(queries: string[]):Promise<[number, number[],
 
     // Clean batch after validation
     trainEngine.cleanBatchTrainingExamplesValidation();
-    console.log("DONE?")
+    console.log(`End tensors ${tf.memory().numTensors}`);
     return [avgExecutionTime, avgExecutionTimeTemplate, stdExecutionTimeTemplate, averageLoss, stdLoss];
 }
 
@@ -354,7 +425,6 @@ function writeEpochFiles(fileLocations: string[], epochInformation: number[][], 
     for (let i=0;i<fileLocations.length;i++){
         fs.writeFileSync(fileLocations[i], JSON.stringify([...epochInformation[i]]));
     }
-    fs.writeFileSync('log/skippedQueries.json', JSON.stringify([...zeroJoinsFound]) , 'utf-8'); 
+    // fs.writeFileSync('log/skippedQueries.json', JSON.stringify([...zeroJoinsFound]) , 'utf-8'); 
 }
 
-// NOTE THE PRESENCE OF PREVIOUS QUERY CAUSES NEXT QUERY TO HAVE INCORRECT HIDDENSTATE SIZE!!!
