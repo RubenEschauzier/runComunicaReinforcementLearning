@@ -48,7 +48,7 @@ class trainComunicaModel {
     async executeQueryValidation(query, sources, queryKey) {
         const startTime = this.getTimeSeconds();
         const bindingsStream = await this.engine.queryBindings(query, { sources: sources,
-            batchedTrainingExamples: this.batchedValidationExamples, train: true });
+            batchedTrainingExamples: this.batchedValidationExamples, train: false });
         const joinOrderKeys = [];
         for (let i = 1; i < this.engine.trainEpisode.joinsMade.length + 1; i++) {
             const joinIndexId = this.engine.trainEpisode.joinsMade.slice(0, i);
@@ -118,6 +118,38 @@ class trainComunicaModel {
         }
     }
     addListener(bindingStream, startTime, joinsMadeEpisode, queryKey, validation, recordExperience) {
+        /**
+         * Function that consumes the binding stream, measures elapsed time, and updates the batchTrainEpisode
+         */
+        const finishedReading = new Promise((resolve, reject) => {
+            bindingStream.on('data', (binding) => {
+            });
+            bindingStream.on('end', () => {
+                const endTime = this.getTimeSeconds();
+                const elapsed = endTime - startTime;
+                const statsY = this.runningMomentsExecutionTime.runningStats.get(this.runningMomentsExecutionTime.indexes[0]);
+                if (!validation) {
+                    (0, helper_1.updateRunningMoments)(statsY, elapsed);
+                }
+                const standardisedElapsed = (elapsed - statsY.mean) / statsY.std;
+                for (const joinMade of joinsMadeEpisode) {
+                    const trainingExample = validation ? this.batchedValidationExamples.trainingExamples.get(joinMade) :
+                        this.batchedTrainingExamples.trainingExamples.get(joinMade);
+                    if (!trainingExample) {
+                        throw new Error("Training example given that is not in batched episode");
+                    }
+                    const newExperience = { actualExecutionTimeRaw: elapsed, actualExecutionTimeNorm: standardisedElapsed,
+                        joinIndexes: (0, helper_1.keyToIdx)(joinMade), N: 1 };
+                    if (recordExperience) {
+                        this.experienceBuffer.setExperience(queryKey, joinMade, newExperience, statsY);
+                    }
+                }
+                resolve(elapsed);
+            });
+        });
+        return finishedReading;
+    }
+    addListenerTimeOut(bindingStream, startTime, joinsMadeEpisode, queryKey, validation, recordExperience) {
         /**
          * Function that consumes the binding stream, measures elapsed time, and updates the batchTrainEpisode
          */

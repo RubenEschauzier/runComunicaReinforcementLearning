@@ -63,7 +63,8 @@ class trainComunicaModel{
     public async executeQueryValidation(query: string, sources:string[], queryKey: string){
         const startTime: number = this.getTimeSeconds();
         const bindingsStream: BindingsStream = await this.engine.queryBindings(query, {sources: sources, 
-            batchedTrainingExamples: this.batchedValidationExamples, train: true});
+            batchedTrainingExamples: this.batchedValidationExamples, train: false});
+
         const joinOrderKeys: string[] = [];
         for (let i = 1; i <this.engine.trainEpisode.joinsMade.length+1;i++){
             const joinIndexId = this.engine.trainEpisode.joinsMade.slice(0, i);
@@ -237,7 +238,7 @@ class trainComunicaModel{
         });
         return resolvedPromise;
     }
-    
+
     public async awaitEngine(){
         this.engine = await this.engine
     }
