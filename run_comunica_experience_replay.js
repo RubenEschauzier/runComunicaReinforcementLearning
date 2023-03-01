@@ -1,9 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.trainComunicaModel = void 0;
 const fs = require("fs");
 const path = require("path");
-// import * as tf from '@tensorflow/tfjs-node'
+const tf = require("@tensorflow/tfjs-node");
 const helper_1 = require("./helper");
 // MUST READ: https://lwn.net/Articles/250967/
 class trainComunicaModel {
@@ -211,7 +210,6 @@ class trainComunicaModel {
         return indexes.flat().toString().replaceAll(',', '');
     }
 }
-exports.trainComunicaModel = trainComunicaModel;
 // Magic numbers
 const numSim = 1;
 const numSimVal = 5;
@@ -244,93 +242,69 @@ fs.mkdir(nextModelLocation, (err) => {
 // FOR DEBUGGING
 Error.stackTraceLimit = Infinity;
 loadingTrain.then(async () => {
-    const batchedTrainExamples = { trainingExamples: new Map, leafFeatures: { hiddenStates: [], memoryCell: [] } };
-    await loadingValidation;
-    let cleanedQueriesVal = trainEngine.valQueries.map(x => x.replace(/\n/g, '').replace(/\t/g, '').split('SELECT'));
     let cleanedQueries = trainEngine.queries.map(x => x.replace(/\n/g, '').replace(/\t/g, '').split('SELECT'));
-    for (let i = 0; i < cleanedQueries.length; i++) {
-        cleanedQueries[i].shift();
-        cleanedQueriesVal[i].shift();
-        for (let j = 0; j < cleanedQueries[i].length; j++) {
-            cleanedQueries[i][j] = 'SELECT' + cleanedQueries[i][j];
-        }
-        for (let k = 0; k < cleanedQueriesVal[i].length; k++) {
-            cleanedQueriesVal[i][k] = 'SELECT' + cleanedQueriesVal[i][k];
-        }
-    }
     await trainEngine.awaitEngine();
-    const binding = await trainEngine.engine.queryBindings(cleanedQueries[0][0], { sources: ["missingGenreOutput/dataset.nt"], batchedTrainingExamples: batchedTrainExamples, train: true });
-    binding.on('data', () => {
-        console.log("CONSOOM");
-    });
-    binding.on('end', () => {
-        console.log("THIS IS THE END!");
-    });
-    binding.on('error', () => {
-        console.log("We get error");
-    });
-    console.log("Destroyed");
-    binding.destroy('timeout');
-    // trainEngine.engine.queryBindingsTrain(cleanedQueries, cleanedQueriesVal, 1,1,1,1, 100, batchedTrainExamples, {sources: ["missingGenreOutput/dataset.nt"]} );
-    // // await trainEngine.executeQueryTrain('SELECT' + cleanedQueries[1][1], ["output/dataset.nt"], false);
-    // await initialiseFeaturesExperienceBuffer(trainEngine.experienceBuffer, cleanedQueries);
-    // for (let epoch=0;epoch<nEpochs; epoch++){
-    //     let epochTrainLoss = [];
-    //     for (let i=0;i<cleanedQueries.length;i++){
-    //         const querySubset: string[] = [... cleanedQueries[i]];
-    //         querySubset.shift();
-    //         console.log(`Query Template ${i+1}/${cleanedQueries.length}`);
-    //         const searchTimes = [];
-    //         for (let j=0;j<querySubset.length;j++){
-    //             const queryKey: string = `${i}`+`${j}`;
-    //             for (let k=0;k<numSim;k++){
-    //                 const searchTime = await trainEngine.executeQueryTrain('SELECT' + querySubset[j], ["missingGenreOutput/dataset.nt"], true, queryKey);
-    //                 searchTimes.push(searchTime);
-    //                 const experiences: IExperience[] = [];
-    //                 const features = [];                    
-    // // Sample experiences from the buffer if we have enough prior executions
-    // if (trainEngine.experienceBuffer.getSize()>1){
-    //     for (let z=0;z<numExperiencePerSim;z++){
-    //         const experience: [IExperience, IExperienceKey] = trainEngine.experienceBuffer.getRandomExperience();
-    //         experiences.push(experience[0]);
-    //         const feature = trainEngine.experienceBuffer.getFeatures(experience[1].query)!;
-    //         features.push(feature);
-    //     }
-    //     const loss = await trainEngine.engine.trainModelExperienceReplay(experiences, features);
-    //     epochTrainLoss.push(loss);
-    //                 }
-    //             }
-    //             trainEngine.cleanBatchTrainingExamples();
-    //         }
-    //         averageSearchTime.push(searchTimes.reduce((a, b) => a + b, 0) / searchTimes.length);
-    //     }
-    //     console.log(averageSearchTime);
-    //     const avgLossTrain = epochTrainLoss.reduce((a, b) => a + b, 0) / epochTrainLoss.length;
-    //     const [avgExecution, avgExecutionTemplate, stdExecutionTemplate, avgLoss, stdLoss] = await validatePerformance(trainEngine.valQueries);
-    //     console.log(`Epoch ${epoch+1}/${nEpochs}: Train Loss: ${avgLossTrain}, Validation Execution time: ${avgExecution}, Loss: ${avgLoss}, Std: ${stdLoss}`);
-    //     // Checkpointing
-    //     const checkPointLocation = path.join(nextModelLocation + "/chkp-"+epoch);
-    //     fs.mkdir(checkPointLocation, (err)=>{
-    //         if (err){
-    //             return console.error(err);
-    //         }
-    //     });
-    //     const epochStatisticsLocation = pathEpochInfos.map(x=>path.join(checkPointLocation, x));
-    //     console.log(epochStatisticsLocation)
-    //     totalEpochTrainLoss.push(avgLossTrain); epochValLoss.push(avgLoss); epochValExecutionTime.push(avgExecution); epochValStdLoss.push(stdLoss);    
-    //     writeEpochFiles(epochStatisticsLocation, [totalEpochTrainLoss, epochValLoss, epochValStdLoss, epochValExecutionTime], epoch);
-    //     trainEngine.engine.saveModel();
-    // }
-    // trainEngine.engine.saveModel(pathRunningMoments+"runningMomentsFeatures"+1+".json");  
+    // await trainEngine.executeQueryTrain('SELECT' + cleanedQueries[1][1], ["output/dataset.nt"], false);
+    await initialiseFeaturesExperienceBuffer(trainEngine.experienceBuffer, cleanedQueries);
+    for (let epoch = 0; epoch < nEpochs; epoch++) {
+        let epochTrainLoss = [];
+        for (let i = 0; i < cleanedQueries.length; i++) {
+            const querySubset = [...cleanedQueries[i]];
+            querySubset.shift();
+            console.log(`Query Template ${i + 1}/${cleanedQueries.length}`);
+            const searchTimes = [];
+            for (let j = 0; j < querySubset.length; j++) {
+                const queryKey = `${i}` + `${j}`;
+                for (let k = 0; k < numSim; k++) {
+                    const searchTime = await trainEngine.executeQueryTrain('SELECT' + querySubset[j], ["http://localhost:3000/sparql"], true, queryKey);
+                    searchTimes.push(searchTime);
+                    const experiences = [];
+                    const features = [];
+                    // Sample experiences from the buffer if we have enough prior executions
+                    if (trainEngine.experienceBuffer.getSize() > 1) {
+                        for (let z = 0; z < numExperiencePerSim; z++) {
+                            const experience = trainEngine.experienceBuffer.getRandomExperience();
+                            experiences.push(experience[0]);
+                            const feature = trainEngine.experienceBuffer.getFeatures(experience[1].query);
+                            features.push(feature);
+                        }
+                        const loss = await trainEngine.engine.trainModelExperienceReplay(experiences, features);
+                        epochTrainLoss.push(loss);
+                    }
+                }
+                trainEngine.cleanBatchTrainingExamples();
+            }
+            averageSearchTime.push(searchTimes.reduce((a, b) => a + b, 0) / searchTimes.length);
+        }
+        console.log(averageSearchTime);
+        const avgLossTrain = epochTrainLoss.reduce((a, b) => a + b, 0) / epochTrainLoss.length;
+        const [avgExecution, avgExecutionTemplate, stdExecutionTemplate, avgLoss, stdLoss] = await validatePerformance(trainEngine.valQueries);
+        console.log(`Epoch ${epoch + 1}/${nEpochs}: Train Loss: ${avgLossTrain}, Validation Execution time: ${avgExecution}, Loss: ${avgLoss}, Std: ${stdLoss}`);
+        // Checkpointing
+        const checkPointLocation = path.join(nextModelLocation + "/chkp-" + epoch);
+        fs.mkdir(checkPointLocation, (err) => {
+            if (err) {
+                return console.error(err);
+            }
+        });
+        const epochStatisticsLocation = pathEpochInfos.map(x => path.join(checkPointLocation, x));
+        console.log(epochStatisticsLocation);
+        totalEpochTrainLoss.push(avgLossTrain);
+        epochValLoss.push(avgLoss);
+        epochValExecutionTime.push(avgExecution);
+        epochValStdLoss.push(stdLoss);
+        writeEpochFiles(epochStatisticsLocation, [totalEpochTrainLoss, epochValLoss, epochValStdLoss, epochValExecutionTime], epoch);
+        trainEngine.engine.saveModel();
+    }
+    trainEngine.engine.saveModel(pathRunningMoments + "runningMomentsFeatures" + 1 + ".json");
 });
 async function validatePerformance(queries) {
     console.log("Running validation");
-    // console.log(`Start tensors ${tf.memory().numTensors}`);
+    console.log(`Start tensors ${tf.memory().numTensors}`);
     await loadingValidation;
     let cleanedQueries = trainEngine.valQueries.map(x => x.replace(/\n/g, '').replace(/\t/g, '').split('SELECT'));
     const rawExecutionTimesTemplate = [];
     for (let i = 0; i < cleanedQueries.length; i++) {
-        console.log(i);
         const rawExecutionTimes = [];
         const querySubset = [...cleanedQueries[i]];
         querySubset.shift();
@@ -339,9 +313,8 @@ async function validatePerformance(queries) {
             const queryKey = `${i}` + `${j}`;
             // Because complex queries are all the same, we have only one per template, we skew training execution to small time elapsed, 
             // should prob do something about that? Like add back the complex queries??
-            console.log(numSimVal);
             for (let k = 0; k < numSimVal; k++) {
-                const executionTimeRaw = await trainEngine.executeQueryValidation('SELECT' + querySubset[j], ["missingGenreOutput/dataset.nt"], queryKey);
+                const executionTimeRaw = await trainEngine.executeQueryValidation('SELECT' + querySubset[j], ["http://localhost:3000/sparql"], queryKey);
                 rawExecutionTimes.push(executionTimeRaw);
             }
         }
@@ -365,7 +338,7 @@ async function validatePerformance(queries) {
     const stdLoss = stdArray(MSE, averageLoss);
     // Clean batch after validation
     trainEngine.cleanBatchTrainingExamplesValidation();
-    // console.log(`End tensors ${tf.memory().numTensors}`);
+    console.log(`End tensors ${tf.memory().numTensors}`);
     return [avgExecutionTime, avgExecutionTimeTemplate, stdExecutionTimeTemplate, averageLoss, stdLoss];
 }
 async function initialiseFeaturesExperienceBuffer(buffer, queries) {
@@ -376,7 +349,7 @@ async function initialiseFeaturesExperienceBuffer(buffer, queries) {
         // Start at j=1 because first element is empty
         for (let j = 0; j < querySubset.length; j++) {
             const queryKey = `${i}` + `${j}`;
-            const features = await trainEngine.executeQueryInitFeaturesBuffer('SELECT' + querySubset[j], ["missingGenreOutput/dataset.nt"]);
+            const features = await trainEngine.executeQueryInitFeaturesBuffer('SELECT' + querySubset[j], ["http://localhost:3000/sparql"]);
             buffer.setLeafFeaturesQuery(queryKey, features);
         }
     }

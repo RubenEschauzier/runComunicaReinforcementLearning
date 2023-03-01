@@ -2,11 +2,7 @@ import {BindingsStream, IBatchedTrainingExamples, ITrainEpisode, ITrainingExampl
 import {IAggregateValues, IRunningMoments} from "@comunica/mediator-join-reinforcement-learning";
 import * as fs from 'fs';
 import * as path from 'path';
-import * as tf from '@tensorflow/tfjs-node'
 import { updateRunningMoments } from "./helper";
-import { maxHeaderSize } from "http";
-// TEST
-var readline = require('readline');
 
 
 class trainComunicaModel{
