@@ -268,7 +268,8 @@ const trainEngine = new trainComunicaModel(sizeBuffer);
 
 // Logging info
 const pathRunningMoments = "../../actor-rdf-join-inner-multi-reinforcement-learning-tree/model/moments/";
-const pathEpochInfos: string[] = ["avgTrainLoss.txt", "avgValLoss.txt","stdValLoss.txt", "avgValExecutionTime.txt"];
+const pathEpochInfos: string[] = ["avgTrainLoss.txt", "avgValLoss.txt","stdValLoss.txt", "avgValExecutionTime.txt", "avgExecutionTemplate.txt", "stdExecutionTemplate.txt",
+"avgSearchTemplate.txt", "stdSearchTemplate.txt"];
 const nextModelVersion = trainEngine.getNextVersion(path.join(__dirname, '../log'));
 const nextModelLocation = path.join(__dirname, "../log/model-version-exp-replay-"+nextModelVersion);
 
@@ -309,21 +310,22 @@ loadingTrain.then(async ()=>{
         }
     }
     await trainEngine.awaitEngine();
-    const binding = await trainEngine.engine.queryBindings(cleanedQueries[0][0], {sources:  ["missingGenreOutput/dataset.nt"], batchedTrainingExamples: batchedTrainExamples, train: true});
-    binding.on('data', ()=>{
-        console.log("CONSOOM");
-    })
-    binding.on('end', ()=>{
-        console.log("THIS IS THE END!");
-    })
-    binding.on('error', ()=>{
-        console.log("We get error");
-    });
-    console.log("Destroyed")
-    binding.destroy('timeout');
+    // const binding = await trainEngine.engine.queryBindings(cleanedQueries[0][0], {sources:  ["missingGenreOutput/dataset.nt"], batchedTrainingExamples: batchedTrainExamples, train: true});
+    // binding.on('data', ()=>{
+    //     console.log("CONSOOM");
+    // })
+    // binding.on('end', ()=>{
+    //     console.log("THIS IS THE END!");
+    // })
+    // binding.on('error', ()=>{
+    //     console.log("We get error");
+    // });
+    // console.log("Destroyed")
+    // binding.destroy('timeout');
 
     
-    // trainEngine.engine.queryBindingsTrain(cleanedQueries, cleanedQueriesVal, 1,1,1,1, 100, batchedTrainExamples, {sources: ["missingGenreOutput/dataset.nt"]} );
+    trainEngine.engine.queryBindingsTrain(cleanedQueries, cleanedQueriesVal, 4, 5, 20 , 8, 1500, batchedTrainExamples, {sources: ["missingGenreOutput/dataset.nt"]},
+    nextModelLocation,pathEpochInfos );
 
 
     // // await trainEngine.executeQueryTrain('SELECT' + cleanedQueries[1][1], ["output/dataset.nt"], false);
@@ -456,10 +458,9 @@ function stdArray(values: number[], mean: number){
     return std
 }
 
-function writeEpochFiles(fileLocations: string[], epochInformation: number[][], epochNum: number){
+function writeEpochFiles(fileLocations: string[], epochInformation: number[][]){
     for (let i=0;i<fileLocations.length;i++){
         fs.writeFileSync(fileLocations[i], JSON.stringify([...epochInformation[i]]));
     }
-    // fs.writeFileSync('log/skippedQueries.json', JSON.stringify([...zeroJoinsFound]) , 'utf-8'); 
 }
 
