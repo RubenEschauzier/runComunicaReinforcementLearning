@@ -1,12 +1,11 @@
-import {BindingsStream, IBatchedTrainingExamples, ITrainEpisode, ITrainingExample} from "@comunica/types";
-import {IAggregateValues, IResultSetRepresentation, IRunningMoments} from "@comunica/mediator-join-reinforcement-learning";
+import { IAggregateValues, IResultSetRepresentation, IRunningMoments } from "@comunica/mediator-join-reinforcement-learning";
+import { BindingsStream, IBatchedTrainingExamples, ITrainingExample } from "@comunica/types";
+import { ExperienceBuffer, IExperience, keyToIdx, updateRunningMoments } from "./helper";
 import * as fs from 'fs';
 import * as path from 'path';
-// import * as tf from '@tensorflow/tfjs-node'
-import { ExperienceBuffer, IExperience, IExperienceKey, keyToIdx, updateRunningMoments } from "./helper";
 
-
-// MUST READ: https://lwn.net/Articles/250967/
+// Command to create endpoint:
+// node node_modules/@comunica/query-sparql-file/bin/http.js -c "{\"sources\":[\"missingGenreOutput/dataset.nt\"], \"train\":true}"
 
 export class trainComunicaModel{
     public engine: any;
@@ -253,52 +252,15 @@ export class trainComunicaModel{
         return indexes.flat().toString().replaceAll(',', '');
     }
 }
-// Magic numbers
-const numSim = 1;
-const numSimVal = 5;
-const numExperiencePerSim = 8;
-const nEpochs = 40;
-const sizeBuffer = 2000;
 
-// Timeouts set according to execution time of multi-smallest actor in standard comunica
-const timeouts: number[] = [1,1,1,1,1,1,1,30,1,1,1,1,1,1,1,1,1,1];
-
-// Actual engine used for training
-const trainEngine = new trainComunicaModel(sizeBuffer);
-
-// Logging info
-const pathRunningMoments = "../../actor-rdf-join-inner-multi-reinforcement-learning-tree/model/moments/";
-const pathEpochInfos: string[] = ["avgTrainLoss.txt", "avgValLoss.txt","stdValLoss.txt", "avgValExecutionTime.txt", "avgExecutionTemplate.txt", "stdExecutionTemplate.txt",
-"avgSearchTemplate.txt", "stdSearchTemplate.txt"];
-const nextModelVersion = trainEngine.getNextVersion(path.join(__dirname, '../log'));
-const nextModelLocation = path.join(__dirname, "../log/model-version-exp-replay-"+nextModelVersion);
-
-// Loading queries
+const trainEngine = new trainComunicaModel(1500);
 const loadingTrain = trainEngine.loadWatDivQueries('missingGenreOutput/queries', false);
 const loadingValidation = trainEngine.loadWatDivQueries('missingGenreOutput/queriesVal', true);
 
-// Tracking statistics
-const totalEpochTrainLoss: number[] = [];
-const epochValLoss: number[] = [];
-const epochValExecutionTime: number[] = [];
-const epochValStdLoss: number[] = [];
-const averageSearchTime: number[] = [];
-
-fs.mkdir(nextModelLocation, (err)=>{
-    if (err){
-        return console.error(err);
-    }
-});
-// FOR DEBUGGING
-Error.stackTraceLimit = Infinity;
-
 loadingTrain.then(async ()=>{
-    const batchedTrainExamples: IBatchedTrainingExamples = {trainingExamples: new Map<string, ITrainingExample>, leafFeatures: {hiddenStates: [], memoryCell:[]}};
-
     await loadingValidation;
     let cleanedQueriesVal: string[][] = trainEngine.valQueries.map(x => x.replace(/\n/g, '').replace(/\t/g, '').split('SELECT'));
     let cleanedQueries: string[][] = trainEngine.queries.map(x => x.replace(/\n/g, '').replace(/\t/g, '').split('SELECT'));
-
     for (let i = 0; i<cleanedQueries.length;i++){
         cleanedQueries[i].shift();
         cleanedQueriesVal[i].shift();
@@ -309,145 +271,17 @@ loadingTrain.then(async ()=>{
             cleanedQueriesVal[i][k] = 'SELECT' + cleanedQueriesVal[i][k]
         }
     }
+
     await trainEngine.awaitEngine();
-    
-    trainEngine.engine.queryBindingsTrain(cleanedQueries, cleanedQueriesVal, 5, 5, 20 , 2, 1500, batchedTrainExamples, {sources: ["missingGenreOutput/dataset.nt"]},
-    nextModelLocation, pathEpochInfos);
-
-
-    // // await trainEngine.executeQueryTrain('SELECT' + cleanedQueries[1][1], ["output/dataset.nt"], false);
-    // await initialiseFeaturesExperienceBuffer(trainEngine.experienceBuffer, cleanedQueries);
-    // for (let epoch=0;epoch<nEpochs; epoch++){
-    //     let epochTrainLoss = [];
-    //     for (let i=0;i<cleanedQueries.length;i++){
-    //         const querySubset: string[] = [... cleanedQueries[i]];
-    //         querySubset.shift();
-
-    //         console.log(`Query Template ${i+1}/${cleanedQueries.length}`);
-
-    //         const searchTimes = [];
-    //         for (let j=0;j<querySubset.length;j++){
-
-    //             const queryKey: string = `${i}`+`${j}`;
-    //             for (let k=0;k<numSim;k++){
-    //                 const searchTime = await trainEngine.executeQueryTrain('SELECT' + querySubset[j], ["missingGenreOutput/dataset.nt"], true, queryKey);
-    //                 searchTimes.push(searchTime);
-    //                 const experiences: IExperience[] = [];
-    //                 const features = [];                    
-                    // // Sample experiences from the buffer if we have enough prior executions
-                    // if (trainEngine.experienceBuffer.getSize()>1){
-                    //     for (let z=0;z<numExperiencePerSim;z++){
-                    //         const experience: [IExperience, IExperienceKey] = trainEngine.experienceBuffer.getRandomExperience();
-                    //         experiences.push(experience[0]);
-                    //         const feature = trainEngine.experienceBuffer.getFeatures(experience[1].query)!;
-                    //         features.push(feature);
-                    //     }
-                    //     const loss = await trainEngine.engine.trainModelExperienceReplay(experiences, features);
-                    //     epochTrainLoss.push(loss);
-    //                 }
-    //             }
-    //             trainEngine.cleanBatchTrainingExamples();
-    //         }
-    //         averageSearchTime.push(searchTimes.reduce((a, b) => a + b, 0) / searchTimes.length);
+    const test: BindingsStream = await trainEngine.engine.query(cleanedQueries[0][0], {sources: ['http://localhost:3000/sparql'], train:true, queryKey:'00'})
+    // for (let i = 0; i<cleanedQueries.length; i++){
+    //     for (let j = 0; j<cleanedQueries[i].length;j++){
+    //         await trainEngine.engine.querySingleTrainStep(cleanedQueries[i][j], 
+    //         {sources: ['missingGenreOutput/dataset.nt'],
+    //         queryKey: `${i}`+`${j}`,
+    //         train: true
+    //         });
     //     }
-    //     console.log(averageSearchTime);
-    //     const avgLossTrain = epochTrainLoss.reduce((a, b) => a + b, 0) / epochTrainLoss.length;
-    //     const [avgExecution, avgExecutionTemplate, stdExecutionTemplate, avgLoss, stdLoss] = await validatePerformance(trainEngine.valQueries);
-    //     console.log(`Epoch ${epoch+1}/${nEpochs}: Train Loss: ${avgLossTrain}, Validation Execution time: ${avgExecution}, Loss: ${avgLoss}, Std: ${stdLoss}`);
-
-    //     // Checkpointing
-    //     const checkPointLocation = path.join(nextModelLocation + "/chkp-"+epoch);
-
-    //     fs.mkdir(checkPointLocation, (err)=>{
-    //         if (err){
-    //             return console.error(err);
-    //         }
-    //     });
-
-    //     const epochStatisticsLocation = pathEpochInfos.map(x=>path.join(checkPointLocation, x));
-    //     console.log(epochStatisticsLocation)
-
-    //     totalEpochTrainLoss.push(avgLossTrain); epochValLoss.push(avgLoss); epochValExecutionTime.push(avgExecution); epochValStdLoss.push(stdLoss);    
-    //     writeEpochFiles(epochStatisticsLocation, [totalEpochTrainLoss, epochValLoss, epochValStdLoss, epochValExecutionTime], epoch);
-    //     trainEngine.engine.saveModel();
     // }
-    // trainEngine.engine.saveModel(pathRunningMoments+"runningMomentsFeatures"+1+".json");  
 });
-
-async function validatePerformance(queries: string[]):Promise<[number, number[], number[], number, number]>{
-    console.log("Running validation");
-    // console.log(`Start tensors ${tf.memory().numTensors}`);
-    await loadingValidation;
-    let cleanedQueries: string[][] = trainEngine.valQueries.map(x => x.replace(/\n/g, '').replace(/\t/g, '').split('SELECT'));
-    const rawExecutionTimesTemplate: number[][] = [];
-    for(let i=0;i<cleanedQueries.length;i++){
-        console.log(i);
-        const rawExecutionTimes: number[] = []
-        const querySubset: string[] = [... cleanedQueries[i]];
-        querySubset.shift();
-        // Start at j=1 because first element is empty
-        for (let j=0;j<querySubset.length;j++){
-            const queryKey: string = `${i}`+`${j}`;
-            // Because complex queries are all the same, we have only one per template, we skew training execution to small time elapsed, 
-            // should prob do something about that? Like add back the complex queries??
-            console.log(numSimVal)
-            for (let k=0;k<numSimVal;k++){
-                const executionTimeRaw: number = await trainEngine.executeQueryValidation('SELECT' + querySubset[j], ["missingGenreOutput/dataset.nt"], queryKey);
-                rawExecutionTimes.push(executionTimeRaw);
-            }
-        }
-
-        rawExecutionTimesTemplate.push(rawExecutionTimes);
-    }
-    // Get raw validaiton execution time statistics
-    const flatExeTime: number[] = rawExecutionTimesTemplate.flat();
-    const avgExecutionTime = flatExeTime.reduce((a, b) => a + b, 0) / flatExeTime.length;
-    const avgExecutionTimeTemplate = rawExecutionTimesTemplate.map(x=>(x.reduce((a,b)=> a+b,0))/x.length);
-    const stdExecutionTimeTemplate = [];
-
-    for (let k=0;k<avgExecutionTimeTemplate.length;k++){
-        stdExecutionTimeTemplate.push(stdArray(rawExecutionTimesTemplate[k],avgExecutionTimeTemplate[k]))
-    }
-    // Get validation loss
-    const MSE: number[] = [];
-    for (const [_, trainExample] of trainEngine.batchedValidationExamples.trainingExamples.entries()){
-        const singleMSE = (trainExample.qValue - trainExample.actualExecutionTime)**2;
-        MSE.push(singleMSE);
-    }
-    const averageLoss = MSE.reduce((a,b)=> a+b,0)/MSE.length;
-    const stdLoss = stdArray(MSE, averageLoss);
-
-    // Clean batch after validation
-    trainEngine.cleanBatchTrainingExamplesValidation();
-    // console.log(`End tensors ${tf.memory().numTensors}`);
-    return [avgExecutionTime, avgExecutionTimeTemplate, stdExecutionTimeTemplate, averageLoss, stdLoss];
-}
-
-async function initialiseFeaturesExperienceBuffer(buffer: ExperienceBuffer, queries: string[][]){
-
-    for(let i=0;i<queries.length;i++){
-        const rawExecutionTimes: number[] = []
-        const querySubset: string[] = [... queries[i]];
-        querySubset.shift();
-        // Start at j=1 because first element is empty
-        for (let j=0;j<querySubset.length;j++){
-            const queryKey: string = `${i}`+`${j}`;
-            const features: IResultSetRepresentation = await trainEngine.executeQueryInitFeaturesBuffer('SELECT' + querySubset[j], 
-            ["missingGenreOutput/dataset.nt"]);
-            buffer.setLeafFeaturesQuery(queryKey, features);
-        }
-    }
-
-    return
-}
-function stdArray(values: number[], mean: number){
-    const std: number = Math.sqrt((values.map(x=>(x-mean)**2).reduce((a, b)=>a+b,0) / values.length));
-    return std
-}
-
-function writeEpochFiles(fileLocations: string[], epochInformation: number[][]){
-    for (let i=0;i<fileLocations.length;i++){
-        fs.writeFileSync(fileLocations[i], JSON.stringify([...epochInformation[i]]));
-    }
-}
 

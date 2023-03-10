@@ -1,11 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.trainComunicaModel = void 0;
+const helper_1 = require("./helper");
 const fs = require("fs");
 const path = require("path");
-// import * as tf from '@tensorflow/tfjs-node'
-const helper_1 = require("./helper");
-// MUST READ: https://lwn.net/Articles/250967/
+// Command to create endpoint:
+// node node_modules/@comunica/query-sparql-file/bin/http.js -c "{\"sources\":[\"missingGenreOutput/dataset.nt\"], \"train\":true}"
 class trainComunicaModel {
     constructor(bufferSize) {
         const QueryEngine = require('@comunica/query-sparql-file').QueryEngineFactory;
@@ -212,40 +212,10 @@ class trainComunicaModel {
     }
 }
 exports.trainComunicaModel = trainComunicaModel;
-// Magic numbers
-const numSim = 1;
-const numSimVal = 5;
-const numExperiencePerSim = 8;
-const nEpochs = 40;
-const sizeBuffer = 2000;
-// Timeouts set according to execution time of multi-smallest actor in standard comunica
-const timeouts = [1, 1, 1, 1, 1, 1, 1, 30, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
-// Actual engine used for training
-const trainEngine = new trainComunicaModel(sizeBuffer);
-// Logging info
-const pathRunningMoments = "../../actor-rdf-join-inner-multi-reinforcement-learning-tree/model/moments/";
-const pathEpochInfos = ["avgTrainLoss.txt", "avgValLoss.txt", "stdValLoss.txt", "avgValExecutionTime.txt", "avgExecutionTemplate.txt", "stdExecutionTemplate.txt",
-    "avgSearchTemplate.txt", "stdSearchTemplate.txt"];
-const nextModelVersion = trainEngine.getNextVersion(path.join(__dirname, '../log'));
-const nextModelLocation = path.join(__dirname, "../log/model-version-exp-replay-" + nextModelVersion);
-// Loading queries
+const trainEngine = new trainComunicaModel(1500);
 const loadingTrain = trainEngine.loadWatDivQueries('missingGenreOutput/queries', false);
 const loadingValidation = trainEngine.loadWatDivQueries('missingGenreOutput/queriesVal', true);
-// Tracking statistics
-const totalEpochTrainLoss = [];
-const epochValLoss = [];
-const epochValExecutionTime = [];
-const epochValStdLoss = [];
-const averageSearchTime = [];
-fs.mkdir(nextModelLocation, (err) => {
-    if (err) {
-        return console.error(err);
-    }
-});
-// FOR DEBUGGING
-Error.stackTraceLimit = Infinity;
 loadingTrain.then(async () => {
-    const batchedTrainExamples = { trainingExamples: new Map, leafFeatures: { hiddenStates: [], memoryCell: [] } };
     await loadingValidation;
     let cleanedQueriesVal = trainEngine.valQueries.map(x => x.replace(/\n/g, '').replace(/\t/g, '').split('SELECT'));
     let cleanedQueries = trainEngine.queries.map(x => x.replace(/\n/g, '').replace(/\t/g, '').split('SELECT'));
@@ -260,124 +230,15 @@ loadingTrain.then(async () => {
         }
     }
     await trainEngine.awaitEngine();
-    trainEngine.engine.queryBindingsTrain(cleanedQueries, cleanedQueriesVal, 5, 5, 20, 2, 1500, batchedTrainExamples, { sources: ["missingGenreOutput/dataset.nt"] }, nextModelLocation, pathEpochInfos);
-    // // await trainEngine.executeQueryTrain('SELECT' + cleanedQueries[1][1], ["output/dataset.nt"], false);
-    // await initialiseFeaturesExperienceBuffer(trainEngine.experienceBuffer, cleanedQueries);
-    // for (let epoch=0;epoch<nEpochs; epoch++){
-    //     let epochTrainLoss = [];
-    //     for (let i=0;i<cleanedQueries.length;i++){
-    //         const querySubset: string[] = [... cleanedQueries[i]];
-    //         querySubset.shift();
-    //         console.log(`Query Template ${i+1}/${cleanedQueries.length}`);
-    //         const searchTimes = [];
-    //         for (let j=0;j<querySubset.length;j++){
-    //             const queryKey: string = `${i}`+`${j}`;
-    //             for (let k=0;k<numSim;k++){
-    //                 const searchTime = await trainEngine.executeQueryTrain('SELECT' + querySubset[j], ["missingGenreOutput/dataset.nt"], true, queryKey);
-    //                 searchTimes.push(searchTime);
-    //                 const experiences: IExperience[] = [];
-    //                 const features = [];                    
-    // // Sample experiences from the buffer if we have enough prior executions
-    // if (trainEngine.experienceBuffer.getSize()>1){
-    //     for (let z=0;z<numExperiencePerSim;z++){
-    //         const experience: [IExperience, IExperienceKey] = trainEngine.experienceBuffer.getRandomExperience();
-    //         experiences.push(experience[0]);
-    //         const feature = trainEngine.experienceBuffer.getFeatures(experience[1].query)!;
-    //         features.push(feature);
+    const test = await trainEngine.engine.query(cleanedQueries[0][0], { sources: ['http://localhost:3000/sparql'], train: true, queryKey: '00' });
+    // for (let i = 0; i<cleanedQueries.length; i++){
+    //     for (let j = 0; j<cleanedQueries[i].length;j++){
+    //         await trainEngine.engine.querySingleTrainStep(cleanedQueries[i][j], 
+    //         {sources: ['missingGenreOutput/dataset.nt'],
+    //         queryKey: `${i}`+`${j}`,
+    //         train: true
+    //         });
     //     }
-    //     const loss = await trainEngine.engine.trainModelExperienceReplay(experiences, features);
-    //     epochTrainLoss.push(loss);
-    //                 }
-    //             }
-    //             trainEngine.cleanBatchTrainingExamples();
-    //         }
-    //         averageSearchTime.push(searchTimes.reduce((a, b) => a + b, 0) / searchTimes.length);
-    //     }
-    //     console.log(averageSearchTime);
-    //     const avgLossTrain = epochTrainLoss.reduce((a, b) => a + b, 0) / epochTrainLoss.length;
-    //     const [avgExecution, avgExecutionTemplate, stdExecutionTemplate, avgLoss, stdLoss] = await validatePerformance(trainEngine.valQueries);
-    //     console.log(`Epoch ${epoch+1}/${nEpochs}: Train Loss: ${avgLossTrain}, Validation Execution time: ${avgExecution}, Loss: ${avgLoss}, Std: ${stdLoss}`);
-    //     // Checkpointing
-    //     const checkPointLocation = path.join(nextModelLocation + "/chkp-"+epoch);
-    //     fs.mkdir(checkPointLocation, (err)=>{
-    //         if (err){
-    //             return console.error(err);
-    //         }
-    //     });
-    //     const epochStatisticsLocation = pathEpochInfos.map(x=>path.join(checkPointLocation, x));
-    //     console.log(epochStatisticsLocation)
-    //     totalEpochTrainLoss.push(avgLossTrain); epochValLoss.push(avgLoss); epochValExecutionTime.push(avgExecution); epochValStdLoss.push(stdLoss);    
-    //     writeEpochFiles(epochStatisticsLocation, [totalEpochTrainLoss, epochValLoss, epochValStdLoss, epochValExecutionTime], epoch);
-    //     trainEngine.engine.saveModel();
     // }
-    // trainEngine.engine.saveModel(pathRunningMoments+"runningMomentsFeatures"+1+".json");  
 });
-async function validatePerformance(queries) {
-    console.log("Running validation");
-    // console.log(`Start tensors ${tf.memory().numTensors}`);
-    await loadingValidation;
-    let cleanedQueries = trainEngine.valQueries.map(x => x.replace(/\n/g, '').replace(/\t/g, '').split('SELECT'));
-    const rawExecutionTimesTemplate = [];
-    for (let i = 0; i < cleanedQueries.length; i++) {
-        console.log(i);
-        const rawExecutionTimes = [];
-        const querySubset = [...cleanedQueries[i]];
-        querySubset.shift();
-        // Start at j=1 because first element is empty
-        for (let j = 0; j < querySubset.length; j++) {
-            const queryKey = `${i}` + `${j}`;
-            // Because complex queries are all the same, we have only one per template, we skew training execution to small time elapsed, 
-            // should prob do something about that? Like add back the complex queries??
-            console.log(numSimVal);
-            for (let k = 0; k < numSimVal; k++) {
-                const executionTimeRaw = await trainEngine.executeQueryValidation('SELECT' + querySubset[j], ["missingGenreOutput/dataset.nt"], queryKey);
-                rawExecutionTimes.push(executionTimeRaw);
-            }
-        }
-        rawExecutionTimesTemplate.push(rawExecutionTimes);
-    }
-    // Get raw validaiton execution time statistics
-    const flatExeTime = rawExecutionTimesTemplate.flat();
-    const avgExecutionTime = flatExeTime.reduce((a, b) => a + b, 0) / flatExeTime.length;
-    const avgExecutionTimeTemplate = rawExecutionTimesTemplate.map(x => (x.reduce((a, b) => a + b, 0)) / x.length);
-    const stdExecutionTimeTemplate = [];
-    for (let k = 0; k < avgExecutionTimeTemplate.length; k++) {
-        stdExecutionTimeTemplate.push(stdArray(rawExecutionTimesTemplate[k], avgExecutionTimeTemplate[k]));
-    }
-    // Get validation loss
-    const MSE = [];
-    for (const [_, trainExample] of trainEngine.batchedValidationExamples.trainingExamples.entries()) {
-        const singleMSE = (trainExample.qValue - trainExample.actualExecutionTime) ** 2;
-        MSE.push(singleMSE);
-    }
-    const averageLoss = MSE.reduce((a, b) => a + b, 0) / MSE.length;
-    const stdLoss = stdArray(MSE, averageLoss);
-    // Clean batch after validation
-    trainEngine.cleanBatchTrainingExamplesValidation();
-    // console.log(`End tensors ${tf.memory().numTensors}`);
-    return [avgExecutionTime, avgExecutionTimeTemplate, stdExecutionTimeTemplate, averageLoss, stdLoss];
-}
-async function initialiseFeaturesExperienceBuffer(buffer, queries) {
-    for (let i = 0; i < queries.length; i++) {
-        const rawExecutionTimes = [];
-        const querySubset = [...queries[i]];
-        querySubset.shift();
-        // Start at j=1 because first element is empty
-        for (let j = 0; j < querySubset.length; j++) {
-            const queryKey = `${i}` + `${j}`;
-            const features = await trainEngine.executeQueryInitFeaturesBuffer('SELECT' + querySubset[j], ["missingGenreOutput/dataset.nt"]);
-            buffer.setLeafFeaturesQuery(queryKey, features);
-        }
-    }
-    return;
-}
-function stdArray(values, mean) {
-    const std = Math.sqrt((values.map(x => (x - mean) ** 2).reduce((a, b) => a + b, 0) / values.length));
-    return std;
-}
-function writeEpochFiles(fileLocations, epochInformation) {
-    for (let i = 0; i < fileLocations.length; i++) {
-        fs.writeFileSync(fileLocations[i], JSON.stringify([...epochInformation[i]]));
-    }
-}
-//# sourceMappingURL=run_comunica_experience_replay.js.map
+//# sourceMappingURL=run_comunica_endpoint.js.map
