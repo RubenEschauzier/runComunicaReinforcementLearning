@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 // Command to create endpoint:
-// node node_modules/@comunica/query-sparql-file/bin/http.js -c "{\"sources\":[\"missingGenreOutput/dataset.nt\"], \"train\":true}"
+// node node_modules/@comunica/query-sparql-file/bin/http.js -c "{\"sources\":[\"missingGenreOutput/dataset.nt\"], \"trainEndPoint\":true}"
 
 export class trainComunicaModel{
     public engine: any;
@@ -256,6 +256,7 @@ export class trainComunicaModel{
 const trainEngine = new trainComunicaModel(1500);
 const loadingTrain = trainEngine.loadWatDivQueries('missingGenreOutput/queries', false);
 const loadingValidation = trainEngine.loadWatDivQueries('missingGenreOutput/queriesVal', true);
+Error.stackTraceLimit = Infinity;
 
 loadingTrain.then(async ()=>{
     await loadingValidation;

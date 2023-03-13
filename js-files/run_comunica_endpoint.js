@@ -215,6 +215,7 @@ exports.trainComunicaModel = trainComunicaModel;
 const trainEngine = new trainComunicaModel(1500);
 const loadingTrain = trainEngine.loadWatDivQueries('missingGenreOutput/queries', false);
 const loadingValidation = trainEngine.loadWatDivQueries('missingGenreOutput/queriesVal', true);
+Error.stackTraceLimit = Infinity;
 loadingTrain.then(async () => {
     await loadingValidation;
     let cleanedQueriesVal = trainEngine.valQueries.map(x => x.replace(/\n/g, '').replace(/\t/g, '').split('SELECT'));
