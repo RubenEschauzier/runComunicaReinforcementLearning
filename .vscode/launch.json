@@ -11,8 +11,8 @@
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "args": ["max_old_space_size=16000"],
-            "program": "${workspaceFolder}/js-files/run_comunica_experience_replay.js",
+            "args": ["max_old_space_size=10000"],
+            "program": "${workspaceFolder}/js-files/run_comunica_endpoint.js",
             "console": "integratedTerminal",
             "outFiles": [
                 "${workspaceFolder}/**/*.js"

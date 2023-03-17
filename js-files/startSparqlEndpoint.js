@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.createEndPoint = void 0;
 const actor_init_query_1 = require("@comunica/actor-init-query");
 const run_comunica_experience_replay_1 = require("./run_comunica_experience_replay");
 const cluster = require("cluster");
@@ -10,16 +11,15 @@ const runningMomentsFeatureFile = "../../actor-rdf-join-inner-multi-reinforcemen
 const batchedTrainExamples = { trainingExamples: new Map, leafFeatures: { hiddenStates: [], memoryCell: [] } };
 // Need to pass to SPARQL endpoint context: 
 // {runningMomentsFeatureFile, timeout, invalidateCacheBeforeQuery, sources, train:true, batchedTrainExamples (NEEDS TO BE REUSED IN TRAINING)}
-function createEndpoint(stdout, stderr, exit) {
+function createEndPoint(stdout, stderr, exit) {
     const options = { moduleRootPath: moduleRootPath, mainModulePath: moduleRootPath, defaultConfigPath: defaultConfigPath,
         configPath: defaultConfigPath,
         context: {
             sources: ['missingGenreOutput/dataset.nt'],
-            runningMomentsFeatureFile: runningMomentsFeatureFile,
-            train: true,
+            trainEndPoint: true,
             batchedTrainingExamples: batchedTrainExamples
         },
-        timeout: 1000, invalidateCacheBeforeQuery: true };
+        timeout: 5, invalidateCacheBeforeQuery: true };
     return new Promise(resolve => {
         const endPoint = new actor_init_query_1.HttpServiceSparqlEndpoint(options || {}).run(stdout, stderr)
             .then((result) => resolve(result))
@@ -31,13 +31,14 @@ function createEndpoint(stdout, stderr, exit) {
         resolve(endPoint);
     });
 }
+exports.createEndPoint = createEndPoint;
 ;
 function sleep(ms) {
     return new Promise((resolve) => {
         setTimeout(resolve, ms);
     });
 }
-const doneCreating = createEndpoint(process.stdout, process.stderr, code => process.exit(code));
+const doneCreating = createEndPoint(process.stdout, process.stderr, code => process.exit(code));
 if (cluster.isMaster) {
     doneCreating.then(async () => {
         // Wait for the worker to create comunica, bit hacky
