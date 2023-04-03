@@ -7,7 +7,7 @@ const cluster = require("cluster");
 const path = require("path");
 const defaultConfigPath = path.join(__dirname, "../../../comunica-rl-updated/engines/query-sparql-file/bin/") + "../config/config-default.json";
 const moduleRootPath = path.join(__dirname, "../../../comunica-rl-updated/engines/query-sparql-file/bin/") + "../";
-const runningMomentsFeatureFile = "../../actor-rdf-join-inner-multi-reinforcement-learning-tree/model/moments/" + "runningMomentsFeatures" + 1 + ".json";
+// const runningMomentsFeatureFile = "../../actor-rdf-join-inner-multi-reinforcement-learning-tree/model/moments/"+"runningMomentsFeatures"+1+".json";
 const batchedTrainExamples = { trainingExamples: new Map, leafFeatures: { hiddenStates: [], memoryCell: [] } };
 // Need to pass to SPARQL endpoint context: 
 // {runningMomentsFeatureFile, timeout, invalidateCacheBeforeQuery, sources, train:true, batchedTrainExamples (NEEDS TO BE REUSED IN TRAINING)}

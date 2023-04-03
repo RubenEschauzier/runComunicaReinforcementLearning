@@ -274,19 +274,19 @@ loadingTrain.then(async ()=>{
     }
     await trainEngine.awaitEngine();
     try{
-        const testStream: BindingsStream = await trainEngine.engine.query(cleanedQueries[0][0], {sources: ['http://localhost:3000/sparql'], train:true, queryKey:'00'}, 'parsed');
+        const testStream: BindingsStream = await trainEngine.engine.query(cleanedQueries[0][0], {sources: ['http://localhost:3001/sparql'], train:true}, 'parsed');
     }
     catch(err){
         console.log(err)
     }
-    for (let i = 0; i<cleanedQueries.length; i++){
-        for (let j = 0; j<cleanedQueries[i].length;j++){
-            await trainEngine.engine.querySingleTrainStep(cleanedQueries[i][j], 
-            {sources: ['missingGenreOutput/dataset.nt'],
-            queryKey: `${i}`+`${j}`,
-            train: true
-            });
-        }
-    }
+    // for (let i = 0; i<cleanedQueries.length; i++){
+    //     for (let j = 0; j<cleanedQueries[i].length;j++){
+    //         await trainEngine.engine.querySingleTrainStep(cleanedQueries[i][j], 
+    //         {sources: ['missingGenreOutput/dataset.nt'],
+    //         queryKey: `${i}`+`${j}`,
+    //         train: true
+    //         });
+    //     }
+    // }
 });
 
