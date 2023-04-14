@@ -90,18 +90,18 @@ class trainComunicaModel {
         });
         return loadingComplete;
     }
-    getNextVersion(queryDir) {
-        // Get the next number in the experiments directory
-        const versionsMade = fs.readdirSync(queryDir, { withFileTypes: true })
-            .filter((item) => item.isDirectory())
-            .map((item) => parseInt(item.name.replace(/^\D+/g, '')));
-        if (versionsMade.length == 0) {
-            return 1;
-        }
-        else {
-            return Math.max(...versionsMade) + 1;
-        }
-    }
+    // public getNextVersion(queryDir: string){
+    //     // Get the next number in the experiments directory
+    //     const versionsMade = fs.readdirSync( queryDir, { withFileTypes: true })
+    //     .filter((item) => item.isDirectory())
+    //     .map((item) => parseInt(item.name.replace(/^\D+/g, '')));
+    //     if (versionsMade.length==0){
+    //         return 1;
+    //     }
+    //     else{
+    //         return Math.max(...versionsMade)+1;
+    //     }
+    // }
     addListener(bindingStream, startTime, joinsMadeEpisode, val) {
         /**
          * Function that consumes the binding stream, measures elapsed time, and updates the batchTrainEpisode
@@ -158,20 +158,20 @@ const pathRunningMoments = "../../actor-rdf-join-inner-multi-reinforcement-learn
 const pathEpochInfos = ["avgTrainLoss.txt", "avgValLoss.txt", "stdValLoss.txt", "avgValExecutionTime.txt"];
 const zeroJoinsFound = new Map();
 const trainEngine = new trainComunicaModel();
-const nextModelVersion = trainEngine.getNextVersion(path.join(__dirname, '../log'));
-const nextModelLocation = path.join(__dirname, "../log/model-version-" + nextModelVersion);
-console.log(nextModelLocation);
+// const nextModelVersion = trainEngine.getNextVersion(path.join(__dirname, '../log'));
+// const nextModelLocation = path.join(__dirname, "../log/model-version-"+nextModelVersion);
+// console.log(nextModelLocation)
 const loadingTrain = trainEngine.loadWatDivQueries('output/queries', false);
 const loadingValidation = trainEngine.loadWatDivQueries('missingGenreOutput/queriesVal', true);
 const totalEpochTrainLoss = [];
 const epochValLoss = [];
 const epochValExecutionTime = [];
 const epochValStdLoss = [];
-fs.mkdir(nextModelLocation, (err) => {
-    if (err) {
-        return console.error(err);
-    }
-});
+// fs.mkdir(nextModelLocation, (err)=>{
+//     if (err){
+//         return console.error(err);
+//     }
+// });
 loadingTrain.then(async () => {
     let cleanedQueries = trainEngine.queries.map(x => x.replace(/\n/g, '').replace(/\t/g, '').split('SELECT'));
     await trainEngine.executeQueryTrain('SELECT' + cleanedQueries[1][1], ["output/dataset.nt"], false);
@@ -211,19 +211,16 @@ loadingTrain.then(async () => {
         const [avgExecution, avgExecutionTemplate, stdExecutionTemplate, avgLoss, stdLoss] = await validatePerformance(trainEngine.valQueries);
         console.log(`Epoch ${epoch + 1}/${nEpochs}: Train Loss: ${avgLossTrain}, Validation Execution time: ${avgExecution}, Loss: ${avgLoss}, Std: ${stdLoss}`);
         // Checkpointing
-        const checkPointLocation = path.join(nextModelLocation + "/chkp-" + epoch);
-        fs.mkdir(checkPointLocation, (err) => {
-            if (err) {
-                return console.error(err);
-            }
-        });
-        const epochStatisticsLocation = pathEpochInfos.map(x => path.join(checkPointLocation, x));
-        console.log(epochStatisticsLocation);
-        totalEpochTrainLoss.push(avgLossTrain);
-        epochValLoss.push(avgLoss);
-        epochValExecutionTime.push(avgExecution);
-        epochValStdLoss.push(stdLoss);
-        writeEpochFiles(epochStatisticsLocation, [totalEpochTrainLoss, epochValLoss, epochValStdLoss, epochValExecutionTime], epoch);
+        // const checkPointLocation = path.join(nextModelLocation + "/chkp-"+epoch);
+        // fs.mkdir(checkPointLocation, (err)=>{
+        //     if (err){
+        //         return console.error(err);
+        //     }
+        // });
+        // const epochStatisticsLocation = pathEpochInfos.map(x=>path.join(checkPointLocation, x));
+        // console.log(epochStatisticsLocation)
+        // totalEpochTrainLoss.push(avgLossTrain); epochValLoss.push(avgLoss); epochValExecutionTime.push(avgExecution); epochValStdLoss.push(stdLoss);    
+        // writeEpochFiles(epochStatisticsLocation, [totalEpochTrainLoss, epochValLoss, epochValStdLoss, epochValExecutionTime], epoch);
     }
     fs.writeFileSync('log/skippedQueries.json', JSON.stringify([...zeroJoinsFound]), 'utf-8');
     trainEngine.engine.saveModel(pathRunningMoments + "runningMomentsFeatures" + 1 + ".json");

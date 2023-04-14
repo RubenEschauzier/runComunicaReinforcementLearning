@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 // Command to create endpoint:
-// node node_modules/@comunica/query-sparql-file/bin/http.js -c "{\"sources\":[\"missingGenreOutput/dataset.nt\"], \"trainEndPoint\":true}"
+// node node_modules/@comunica/query-sparql-file/bin/http.js -c "{\"sources\":[\"missingGenreOutput/dataset.nt\"], \"trainEndPoint\":true}" -i true
 
 export class trainComunicaModel{
     public engine: any;

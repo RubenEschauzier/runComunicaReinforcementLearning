@@ -232,7 +232,7 @@ loadingTrain.then(async () => {
     }
     await trainEngine.awaitEngine();
     try {
-        const testStream = await trainEngine.engine.query(cleanedQueries[0][0], { sources: ['http://localhost:3001/sparql'], train: true }, 'parsed');
+        const testStream = await trainEngine.engine.query(cleanedQueries[0][0], { sources: ['http://localhost:3000/sparql'], train: true }, 'parsed');
     }
     catch (err) {
         console.log(err);
