@@ -5,7 +5,7 @@ const helper_1 = require("./helper");
 const fs = require("fs");
 const path = require("path");
 // Command to create endpoint:
-// node node_modules/@comunica/query-sparql-file/bin/http.js -c "{\"sources\":[\"missingGenreOutput/dataset.nt\"], \"trainEndPoint\":true}"
+// node --max-old-space-size=16000 node_modules/@comunica/query-sparql-file/bin/http.js -c "{\"sources\":[\"missingGenreOutput/dataset.nt\"], \"trainEndPoint\":true}" -p 3001 -i true
 class trainComunicaModel {
     constructor(bufferSize) {
         const QueryEngine = require('@comunica/query-sparql-file').QueryEngineFactory;
@@ -232,7 +232,7 @@ loadingTrain.then(async () => {
     }
     await trainEngine.awaitEngine();
     try {
-        const testStream = await trainEngine.engine.query(cleanedQueries[0][0], { sources: ['http://localhost:3000/sparql'], train: true }, 'parsed');
+        const testStream = await trainEngine.engine.query(cleanedQueries[0][0], { sources: ['http://localhost:3001/sparql'], train: true }, 'parsed');
     }
     catch (err) {
         console.log(err);
