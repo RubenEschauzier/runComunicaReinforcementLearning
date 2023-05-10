@@ -4,8 +4,10 @@ import { ExperienceBuffer, IExperience, keyToIdx, updateRunningMoments } from ".
 import * as fs from 'fs';
 import * as path from 'path';
 
+// Command to clear memory after my pc dies
+// freecachemem
 // Command to create endpoint:
-// node --max-old-space-size=16000 node_modules/@comunica/query-sparql-file/bin/http.js -c "{\"sources\":[\"missingGenreOutput/dataset.nt\"], \"trainEndPoint\":true}" -p 3001 -i true
+// node --max-old-space-size=10000 node_modules/@comunica/query-sparql-file/bin/http.js -c "{\"sources\":[\"missingGenreOutput/dataset.nt\"], \"trainEndPoint\":true}" -p 3001 -i true
 
 export class trainComunicaModel{
     public engine: any;
