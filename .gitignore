@@ -157,3 +157,6 @@ log/
 # End of https://www.toptal.com/developers/gitignore/api/node
 
 jbr-setup-endpoint-training/
+modelToValidate/
+validationResults/
+js-files/
