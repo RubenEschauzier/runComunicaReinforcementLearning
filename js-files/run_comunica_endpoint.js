@@ -4,8 +4,10 @@ exports.trainComunicaModel = void 0;
 const helper_1 = require("./helper");
 const fs = require("fs");
 const path = require("path");
+// Command to clear memory after my pc dies
+// freecachemem
 // Command to create endpoint:
-// node --max-old-space-size=16000 node_modules/@comunica/query-sparql-file/bin/http.js -c "{\"sources\":[\"missingGenreOutput/dataset.nt\"], \"trainEndPoint\":true}" -p 3001 -i true
+// node --max-old-space-size=10000 node_modules/@comunica/query-sparql-file/bin/http.js -c "{\"sources\":[\"missingGenreOutput/dataset.nt\"], \"trainEndPoint\":true}" -p 3001 -i true
 class trainComunicaModel {
     constructor(bufferSize) {
         const QueryEngine = require('@comunica/query-sparql-file').QueryEngineFactory;
