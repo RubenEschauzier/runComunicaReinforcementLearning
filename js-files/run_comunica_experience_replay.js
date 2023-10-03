@@ -64,21 +64,21 @@ class trainComunicaModel {
         const startTime = this.getTimeSeconds();
         const bindingsStream = await this.engine.queryBindings(query, { sources: sources,
             batchedTrainingExamples: this.batchedValidationExamples, train: true });
-        const leafFeatures = { hiddenStates: this.batchedValidationExamples.leafFeatures.hiddenStates.map(x => x.clone()),
-            memoryCell: this.batchedValidationExamples.leafFeatures.memoryCell.map(x => x.clone()) };
+        const leafFeatures = { hiddenStates: this.batchedValidationExamples.leafFeatures.hiddenStates.map((x) => x.clone()),
+            memoryCell: this.batchedValidationExamples.leafFeatures.memoryCell.map((x) => x.clone()) };
         this.engine.disposeTrainEpisode();
         this.engine.trainEpisode = { joinsMade: [], estimatedQValues: [], featureTensor: { hiddenStates: [], memoryCell: [] }, isEmpty: true };
         this.cleanBatchTrainingExamplesValidation();
         return leafFeatures;
     }
     cleanBatchTrainingExamples() {
-        this.batchedTrainingExamples.leafFeatures.hiddenStates.map(x => x.dispose());
-        this.batchedTrainingExamples.leafFeatures.memoryCell.map(x => x.dispose());
+        this.batchedTrainingExamples.leafFeatures.hiddenStates.map((x) => x.dispose());
+        this.batchedTrainingExamples.leafFeatures.memoryCell.map((x) => x.dispose());
         this.batchedTrainingExamples = { trainingExamples: new Map, leafFeatures: { hiddenStates: [], memoryCell: [] } };
     }
     cleanBatchTrainingExamplesValidation() {
-        this.batchedValidationExamples.leafFeatures.hiddenStates.map(x => x.dispose());
-        this.batchedValidationExamples.leafFeatures.memoryCell.map(x => x.dispose());
+        this.batchedValidationExamples.leafFeatures.hiddenStates.map((x) => x.dispose());
+        this.batchedValidationExamples.leafFeatures.memoryCell.map((x) => x.dispose());
         this.batchedValidationExamples = { trainingExamples: new Map, leafFeatures: { hiddenStates: [], memoryCell: [] } };
     }
     async loadWatDivQueries(queryDir, val) {
@@ -247,8 +247,8 @@ Error.stackTraceLimit = Infinity;
 loadingTrain.then(async () => {
     const batchedTrainExamples = { trainingExamples: new Map, leafFeatures: { hiddenStates: [], memoryCell: [] } };
     await loadingValidation;
-    let cleanedQueriesVal = trainEngine.valQueries.map(x => x.replace(/\n/g, '').replace(/\t/g, '').split('SELECT'));
-    let cleanedQueries = trainEngine.queries.map(x => x.replace(/\n/g, '').replace(/\t/g, '').split('SELECT'));
+    let cleanedQueriesVal = trainEngine.valQueries.map((x) => x.replace(/\n/g, '').replace(/\t/g, '').split('SELECT'));
+    let cleanedQueries = trainEngine.queries.map((x) => x.replace(/\n/g, '').replace(/\t/g, '').split('SELECT'));
     for (let i = 0; i < cleanedQueries.length; i++) {
         cleanedQueries[i].shift();
         cleanedQueriesVal[i].shift();
@@ -316,7 +316,7 @@ async function validatePerformance(queries) {
     console.log("Running validation");
     // console.log(`Start tensors ${tf.memory().numTensors}`);
     await loadingValidation;
-    let cleanedQueries = trainEngine.valQueries.map(x => x.replace(/\n/g, '').replace(/\t/g, '').split('SELECT'));
+    let cleanedQueries = trainEngine.valQueries.map((x) => x.replace(/\n/g, '').replace(/\t/g, '').split('SELECT'));
     const rawExecutionTimesTemplate = [];
     for (let i = 0; i < cleanedQueries.length; i++) {
         console.log(i);

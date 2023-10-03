@@ -1,3 +1,5 @@
+import {BindingsStream} from "@comunica/types";
+
 class runExperiments{
     public engine: any;
     public queryEngineFactory: any;
@@ -11,6 +13,29 @@ class runExperiments{
 
     }
 
+    public async consumeStream(bindingStream: BindingsStream, startTime: number){
+        let numResults = 0;
+        const timingResults: number[] = [];
+        const finishedReading: Promise<boolean> = new Promise((resolve, reject) => {
+            bindingStream.on('data', (res: any) => {
+                numResults += 1;
+                timingResults.push(runner.getTimeSeconds() - startTime)
+            });
+            bindingStream.on('end', () =>{
+                const elapsed = runner.getTimeSeconds() - startTime;
+                console.log(`Total execution time: ${elapsed}`);
+                console.log(`Number of results: ${numResults}`);
+                console.log(`Result arrival distribution: ${timingResults}`);
+                resolve(true)
+            });
+            bindingStream.on('error', () =>{
+                reject(true)
+            });
+        });
+
+        return finishedReading
+    }
+
     public getTimeSeconds(){
         const hrTime: number[] = process.hrtime();
         const time: number = hrTime[0] + hrTime[1] / 1000000000;
@@ -19,6 +44,16 @@ class runExperiments{
 
 }
 
+const queryComplex = `SELECT ?v0 ?v4 ?v6 ?v7 WHERE {
+	?v0 <http://schema.org/caption> ?v1 .
+	?v0 <http://schema.org/text> ?v2 .
+	?v0 <http://schema.org/contentRating> ?v3 .
+	?v0 <http://purl.org/stuff/rev#hasReview> ?v4 .
+	?v4 <http://purl.org/stuff/rev#title> ?v5 .
+	?v4 <http://purl.org/stuff/rev#reviewer> ?v6 .
+	?v7 <http://schema.org/actor> ?v6 .
+	?v7 <http://schema.org/language> ?v8 .
+}`
 
 const query = `SELECT ?v0 ?v1 ?v3 WHERE {
 	?v0 <http://purl.org/dc/terms/Location> ?v1 .
@@ -27,23 +62,26 @@ const query = `SELECT ?v0 ?v1 ?v3 WHERE {
 	?v0 <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://db.uwaterloo.ca/~galuc/wsdbm/Role2> .
 }`
 
+const numRuns = 10;
 const runner = new runExperiments();
 runner.createEngine().then(async () => {
-    const startTime = runner.getTimeSeconds();
-    const outputStream = await runner.engine.queryBindings(query, {sources: ["output/dataset.nt"]});
-    let numResults = 0;
-    const timingResults: number[] = [];
-    outputStream.on('data', (res: any) => {
-        console.log(res.entries)
-        numResults += 1;
-        timingResults.push(runner.getTimeSeconds() - startTime)
-    });
-    outputStream.on('end', () =>{
-        const elapsed = runner.getTimeSeconds() - startTime;
-        console.log(`Total execution time: ${elapsed}`);
-        console.log(`Number of results: ${numResults}`);
-        console.log(`Result arrival distribution: ${timingResults}`);
-    });
-    
-})
+    for (let i = 0; i<numRuns; i++){
+        const startTime = runner.getTimeSeconds();
+        const outputStream = await runner.engine.queryBindings(queryComplex, {sources: ["/tmp/dataset.nt"], trainEndPoint: true});
+        await runner.consumeStream(outputStream, startTime).catch(err => alert(err));
+        // let numResults = 0;
+        // const timingResults: number[] = [];
+        // outputStream.on('data', (res: any) => {
+        //     console.log(res.entries)
+        //     numResults += 1;
+        //     timingResults.push(runner.getTimeSeconds() - startTime)
+        // });
+        // outputStream.on('end', () =>{
+        //     const elapsed = runner.getTimeSeconds() - startTime;
+        //     console.log(`Total execution time: ${elapsed}`);
+        //     console.log(`Number of results: ${numResults}`);
+        //     console.log(`Result arrival distribution: ${timingResults}`);
+        // });    
+    };
+});
 
