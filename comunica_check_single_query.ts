@@ -62,12 +62,12 @@ const query = `SELECT ?v0 ?v1 ?v3 WHERE {
 	?v0 <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://db.uwaterloo.ca/~galuc/wsdbm/Role2> .
 }`
 
-const numRuns = 10;
+const numRuns = 20;
 const runner = new runExperiments();
 runner.createEngine().then(async () => {
     for (let i = 0; i<numRuns; i++){
         const startTime = runner.getTimeSeconds();
-        const outputStream = await runner.engine.queryBindings(queryComplex, {sources: ["/tmp/dataset.nt"], trainEndPoint: true});
+        const outputStream = await runner.engine.queryBindings(query, {sources: ["/tmp/dataset.nt"], trainEndPoint: true});
         await runner.consumeStream(outputStream, startTime).catch(err => alert(err));
         // let numResults = 0;
         // const timingResults: number[] = [];

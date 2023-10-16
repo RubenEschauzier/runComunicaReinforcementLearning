@@ -26,6 +26,7 @@ async function main(){
     };
     const SparqlQueryRunner = new SparqlBenchmarkRunner(optionsRunner);
     const results = await SparqlQueryRunner.run();
+    console.log(results)
 }
 // This should be equal to "logFileQueueEvolution" in engines/config-query-sparql-link-traversal/config/config-solid-default-priority.json
 
